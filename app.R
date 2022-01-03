@@ -77,7 +77,12 @@ ui <- fluidPage(
     }
     x<-seq(2021,2030,1)
     tem<-function(x,p,q,r,c2w,c2b,c2eb,c2bs,c2t,l2eb,h2t,a,b,c,d,e,f,g,h){
-        result<-(pop(x)*((1-(0.5+x/20)*p-c2w*x/10-c2b*x/10-c2eb*x/10-c2bs*x/10-c2t*x/10)*matrix1[4,3]*(1-f*x/10)*carelec(x,a)+matrix1[4,4]*(1-q*x/10-l2eb*x/10-g*x/10)*lgvelec(x,b)+matrix1[4,5]*(1-r*x/10-h2t*x/10-h*x/10)*hgvelec(x,c)+(1+c2bs*x/10*((matrix1[3,3]*matrix1[4,3])/(matrix1[3,6]*matrix1[4,6])))*matrix1[4,6]*buselec(x,d)+(1+h2t*x/10*(matrix1[4,3]/(100*matrix1[4,7]))+c2t*x/10*((matrix1[3,3]*matrix1[4,3])/(matrix1[3,7]*matrix1[4,7])))*matrix1[4,7]*trainelec(x,e)+c2eb*x/10*1.4*elec(x)*matrix1[4,3]*matrix1[2,2]+l2eb*x/10*10*matrix1[4,4]*matrix1[2,2]+0.028*12))
+        result<-(pop(x)*(car(x,p,c2w,c2b,c2eb,c2bs,c2t)*(1-f*x/10)*carelec(x,a)
+                         +lgv(x,q,l2eb)*(1-g*x/10)*lgvelec(x,b)
+                         +hgv(x,r,h2t)*(1-h*x/10)*hgvelec(x,c)
+                         +bus(x,c2bs)*buselec(x,d)
+                         +train(x,c2t,h2t)*trainelec(x,e)
+                         +ebike(x,c2eb,l2eb)*elec(x)*matrix1[2,2]+0.028*12))
     }
     walk<-function(x,c2w){
         result<-(1+c2w*x/10*1.4*(matrix1[4,3]/matrix1[4,1]))*matrix1[4,1]
@@ -91,14 +96,17 @@ ui <- fluidPage(
     bus<-function(x,c2bs){
         result<-(1+c2bs*x/10*((matrix1[4,3]*matrix1[3,3])/(matrix1[4,6]*matrix1[3,6])))*matrix1[4,6]
     }
-    train<-function(x,c2t){
-        result<-(1+c2t*x/10*((matrix1[4,3]*matrix1[3,3])/(matrix1[4,7]*matrix1[3,7])))*matrix1[4,7]
+    ebike<-function(x,c2eb,l2eb){
+        result<-(c2eb*1.4*matrix1[4,3]+l2eb*10*matrix1[4,4])*x/10
+    }
+    train<-function(x,c2t,h2t){
+        result<-(1+h2t*x/10*(matrix1[4,3]/(100*matrix1[4,7]))+c2t*x/10*((matrix1[4,3]*matrix1[3,3])/(matrix1[4,7]*matrix1[3,7])))*matrix1[4,7]
     }
     lgv<-function(x,q,l2eb){
-        result<-(1-q-l2eb*x/10)*matrix1[4,4]
+        result<-(1-q*x/10-l2eb*x/10)*matrix1[4,4]
     }
     hgv<-function(x,r,h2t){
-        result<-(1-r-h2t*x/10)*matrix1[4,5]
+        result<-(1-r*x/10-h2t*x/10)*matrix1[4,5]
     }
     petrol<-function(x,p,c2w,c2b,c2eb,c2bs,c2t,a,f){
         result<-pop(x)*(0.554*(1-uptake(x,a))*(1-(0.5+x/20)*p-c2w*x/10-c2b*x/10-c2eb*x/10-c2bs*x/10-c2t*x/10)*matrix1[4,3]*0.29*(1-f*x/10))
@@ -116,7 +124,7 @@ server <- function(input, output) {
     output$modes<-renderPlot({
         title3<-"Mode share by passenger km in 2030"
         labels2<-c("Walking","Cycling","Car","Bus","Train")
-        z2<-c(walk(10,input$car2walk/100),cycle(10,input$car2bike/100,input$car2ebike/100),1.4*car(10,input$caravoid/100,input$car2walk/100,input$car2bike/100,input$car2ebike/100,input$car2bus/100,input$car2train/100),17.3*bus(10,input$car2bus/100),60*train(10,input$car2train/100))
+        z2<-c(walk(10,input$car2walk/100),cycle(10,input$car2bike/100,input$car2ebike/100),1.4*car(10,input$caravoid/100,input$car2walk/100,input$car2bike/100,input$car2ebike/100,input$car2bus/100,input$car2train/100),17.3*bus(10,input$car2bus/100),60*train(10,input$car2train/100,input$hgv2rail/100))
         pipercent2<-round(100*z2/sum(z2),1)
         pie(z2,pipercent2,main=title3,col=c( "#D7191C", "#FDAE61", "#FFFFBF", "#ABD9E9", "#2C7BB6"))
         legend("bottomleft",labels2,fill=c( "#D7191C", "#FDAE61", "#FFFFBF", "#ABD9E9", "#2C7BB6"))
@@ -125,7 +133,18 @@ server <- function(input, output) {
     output$Ems<-renderPlot({
         title4<-"Emissions"
         labels4<-c("Car","LGV","Bus","HGV","Train","Other")
-        z4<-c(uptake(0,3/200)*elec(0)*matrix1[2,3]*car(0,0,0,0,0,0,0)+(1-uptake(0,3/200))*matrix1[1,3]*car(0,0,0,0,0,0,0),uptakelgv(0,input$lgvelec/100)*elec(0)*matrix1[2,4]*(1)*lgv(0,0,0)+(1-uptakelgv(0,input$lgvelec/100))*matrix1[1,4]*(1)*lgv(0,0,0),matrix1[1,6] *bus(0,0),uptakehgv(00,input$hgvelec/100)*elec(00)*matrix1[2,5]*hgv(00,0,0)+(1-uptakehgv(0,input$hgvelec/100))*matrix1[1,5]*hgv(0,0,0),0.5*elec(0)*matrix1[2,7]*train(0,0)+0.5*matrix1[1,7]*train(0,0),0.028*12,pop(10)*uptake(10,input$carelec/100)*elec(9)*matrix1[2,3]*(1-input$careff/100)*car(10,input$caravoid/100,input$car2walk/100,input$car2bike/100,input$car2ebike/100,input$car2bus/100,input$car2train/100)+pop(10)*(1-uptake(10,input$carelec/100))*matrix1[1,3]*(1-input$careff/100)*car(10,input$caravoid/100,input$car2walk/100,input$car2bike/100,input$car2ebike/100,input$car2bus/100,input$car2train/100),pop(10)*uptakelgv(10,input$lgvelec/100)*elec(9)*matrix1[2,4]*(1-input$lgveff/100)*lgv(10,input$lgvavoid/100,input$lgv2ebike/100)+pop(10)*(1-uptakelgv(10,input$lgvelec/100))*matrix1[1,4]*(1-input$lgveff/100)*lgv(10,input$lgvavoid/100,input$lgv2ebike/100),pop(10)*input$buselec/100*elec(9)*matrix1[2,6] *bus(10,input$car2bus/100)+pop(10)*(1-input$buselec/100)*matrix1[1,6] *bus(10,input$car2bus/100),pop(10)*uptakehgv(10,input$hgvelec/100)*elec(9)*matrix1[2,5]*(1-input$hgveff/100)*hgv(10,input$hgvavoid/100,input$hgv2rail/100)+pop(10)*(1-uptakehgv(10,input$hgvelec/100))*matrix1[1,5]*(1-input$hgveff/100)*hgv(10,input$hgvavoid/100,input$hgv2rail/100),pop(10)*input$trainelec/100*elec(9)*matrix1[2,7]*train(10,input$car2train/100)+pop(10)*(1-input$trainelec/100)*matrix1[1,7]*train(10,input$car2train/100),0.028*12+elec(9)*matrix1[2,2]*(input$lgv2ebike/100 *matrix1[4,4]+1.4*input$car2ebike/100*matrix1[4,3]))
+        z4<-c(car(0,0,0,0,0,0,0)*carelec(0,3/200),
+              lgv(0,0,0)*lgvelec(0,input$lgvelec/100),
+              bus(0,0)*buselec(0,0),
+              hgv(0,0,0)*hgvelec(0,input$hgvelec/100),
+              train(0,0,0)*trainelec(0,input$trainelec/100),
+              0.028*12,
+              pop(10)*car(10,input$caravoid/100,input$car2walk/100,input$car2bike/100,input$car2ebike/100,input$car2bus/100,input$car2train/100)*(1-input$careff/100)*carelec(10,input$carelec/100),
+              pop(10)*lgv(10,input$lgvavoid/100,input$lgv2ebike/100)*(1-input$lgveff/100)*lgvelec(10,input$lgvelec/100),
+              pop(10)*bus(10,input$car2bus/100)*buselec(10,input$buselec/100),
+              pop(10)*hgv(10,input$hgvavoid/100,input$hgv2rail/100)*(1-input$hgveff/100)*hgvelec(10,input$hgvelec/100),
+              pop(10)*train(10,input$car2train/100,input$hgv2rail/100)*trainelec(10,input$trainelec/100),
+              0.028*12+elec(9)*matrix1[2,2]*(input$lgv2ebike/100 *matrix1[4,4]+1.4*input$car2ebike/100*matrix1[4,3]))
         z5<-matrix(z4,nrow=6,ncol=2)
         years<-c("2019","2030")
         barplot(z5,ylim=c(0,12),col=c("#D73027", "#FC8D59", "#FEE090", "#E0F3F8", "#91BFDB", "#4575B4"),xlab="year",ylab=expression("Mt CO"[2]),names.arg=years,legend.text=labels4)
